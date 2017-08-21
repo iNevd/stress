@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+    "github.com/golang/glog"
 )
 
 var (
@@ -124,6 +125,9 @@ func (a *Attacker) hit(tgt Target) (res Result) {
 		return res
 	}
 
+    // glog level  V1  print response body
+    glog.V(1).Infof("%s", body)
+
 	res.Latency = time.Since(res.Timestamp)
 	res.BytesIn = uint64(len(body))
 	if res.Code >= 300 || res.Code < 200 {
@@ -227,6 +231,9 @@ func (a *Attacker) shoot(tgts Targets) Results {
 			continue
 		}
 
+        // glog level  V1  print response body
+        glog.V(1).Infof("%s", body)
+        
 		res.Latency = time.Since(res.Timestamp)
 		res.BytesIn = uint64(len(body))
 		if res.Code >= 300 || res.Code < 200 {

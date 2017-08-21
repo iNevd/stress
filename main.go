@@ -17,14 +17,13 @@ func main() {
 			fmt.Printf("\n%s command:\n", name)
 			cmd.fs.PrintDefaults()
 		}
-		fmt.Printf("\nglobal flags:\n  -cpus=%d Number of CPUs to use\n", runtime.NumCPU())
+		fmt.Printf("\nglobal flags:\n  -v=%d log response body to file\n  -log_dir=%s log_dir", 1, "./")
 		fmt.Println(examples)
 	}
 
-	cpus := flag.Int("cpus", runtime.NumCPU(), "Number of CPUs to use")
 	flag.Parse()
 
-	runtime.GOMAXPROCS(*cpus)
+	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	args := flag.Args()
 	if len(args) == 0 {
@@ -32,11 +31,14 @@ func main() {
 		os.Exit(1)
 	}
 
+    defer glog.Flush()
+
 	if cmd, ok := commands[args[0]]; !ok {
 		log.Fatalf("Unknown command: %s", args[0])
 	} else if err := cmd.fn(args[1:]); err != nil {
 		log.Fatal(err)
 	}
+
 }
 
 const examples = `
@@ -46,6 +48,7 @@ examples:
   stress attack -targets=targets.txt > results.bin
   stress report -input=results.bin -reporter=json > metrics.json
   cat results.bin | stress report -reporter=plot > plot.html
+  echo "POST http://www.baidu.com" | stress -v=1 -log_dir=log_dir attack -duration=5s -rate=1
 `
 
 type command struct {

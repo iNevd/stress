@@ -1,5 +1,10 @@
 # stress
 
+### 新增功能
+`echo "POST http://www.baidu.com" | stress -v=1 -log_dir=log_dir attack -duration=5s -rate=1`
+
+可以在 stress 后紧跟 `-v=1 -log_dir=log_dir` 实现打印`response body` 到目录 `log_dir`
+
 A test tool to send random http GET/POST requests to server.
 Fork from [Vegeta](https://github.com/tsenart/vegeta).
 
@@ -228,7 +233,7 @@ func main() {
   metrics := stress.NewMetrics(results)
 
   fmt.Printf("Mean latency: %s", metrics.Latencies.Mean)
-  
+
   results = stress.AttackConcy(targets, concurrency, number)
   metrics = stress.NewMetrics(results)
 
