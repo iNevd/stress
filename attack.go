@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	stress "github.com/buaazp/stress/lib"
+	stress "./lib"
 )
 
 func attackCmd() command {
@@ -35,6 +35,8 @@ func attackCmd() command {
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
 
+	fs.DurationVar(&opts.sleep, "sleep", nil, "Sleep while return Error(only for rate mode)")
+
 	return command{fs, func(args []string) error {
 		fs.Parse(args)
 		return attack(opts)
@@ -55,6 +57,7 @@ type attackOpts struct {
 	redirects   int
 	headers     headers
 	laddr       localAddr
+	sleep       time.Duration
 }
 
 // attack validates the attack arguments, sets up the
@@ -98,7 +101,7 @@ func attack(opts *attackOpts) error {
 		return fmt.Errorf(errTargetsFilePrefix+"(%s): %s", opts.targetsf, err)
 	}
 	if len(targets) == 0 {
-		return fmt.Errorf(errTargetsFilePrefix+" : is empty")
+		return fmt.Errorf(errTargetsFilePrefix + " : is empty")
 	}
 
 	switch opts.ordering {
@@ -127,7 +130,12 @@ func attack(opts *attackOpts) error {
 			opts.rate,
 			opts.duration,
 		)
-		results = attacker.AttackRate(targets, opts.rate, opts.duration)
+
+		if opts.sleep != nil {
+			results = attacker.AttackCollectionRate(targets, opts.rate, opts.duration, opts.sleep)
+		} else {
+			results = attacker.AttackRate(targets, opts.rate, opts.duration)
+		}
 	} else if opts.concurrency != 0 {
 		concurrency := opts.concurrency
 		if opts.concurrency > opts.number {

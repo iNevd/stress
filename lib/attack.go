@@ -12,7 +12,9 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-    "github.com/golang/glog"
+
+	"github.com/golang/glog"
+	"github.com/tevino/abool"
 )
 
 var (
@@ -20,7 +22,10 @@ var (
 )
 
 // Attacker is an attack executor which wraps an http.Client
-type Attacker struct{ client http.Client }
+type Attacker struct {
+	client  http.Client
+	deliver *abool.AtomicBool
+}
 
 var (
 	// DefaultRedirects represents the number of times the DefaultAttacker
@@ -68,7 +73,8 @@ func NewAttacker(redirects int, timeout time.Duration, laddr net.IPAddr) *Attack
 			}
 			return nil
 		},
-	}}
+	},
+		abool.New()}
 }
 
 // AttackRate hits the passed Targets (http.Requests) at the rate specified for
@@ -101,6 +107,47 @@ func (a *Attacker) AttackRate(tgts Targets, rate uint64, du time.Duration) Resul
 	return results.Sort()
 }
 
+// AttackRate hits the passed Targets (http.Requests) at the rate specified for
+// duration time and then waits for all the requests to come back.
+// The results of the attackrate are put into a slice which is returned.
+//
+// AttackRate is a wrapper around DefaultAttacker.Attack
+func AttackCollectionRate(tgts Targets, rate uint64, du time.Duration, sleep time.Duration) Results {
+	return DefaultAttacker.AttackCollectionRate(tgts, rate, du, sleep)
+}
+
+// AttackRate attacks the passed Targets (http.Requests) at the rate specified for
+// duration time and then waits for all the requests to come back.
+// The results of the attack are put into a slice which is returned.
+func (a *Attacker) AttackCollectionRate(tgts Targets, rate uint64, du time.Duration, sleep time.Duration) Results {
+	hits := len(tgts)
+	resc := make(chan Result)
+	throttle := time.NewTicker(time.Duration(1e9 / rate))
+	defer throttle.Stop()
+
+	a.deliver.Set()
+	sleepCnt := uint64(0)
+	for i := 0; i < hits; i++ {
+		<-throttle.C
+		if a.deliver.IsSet() {
+			go func(tgt Target) { resc <- a.hit(tgt) }(tgts[i])
+		} else {
+			sleepCnt += 1
+			i -= 1
+			if sleepCnt > rate*sleep.Seconds() {
+				sleepCnt = 0
+				a.deliver.Set()
+			}
+		}
+	}
+	results := make(Results, 0, hits)
+	for len(results) < cap(results) {
+		results = append(results, <-resc)
+	}
+
+	return results.Sort()
+}
+
 func (a *Attacker) hit(tgt Target) (res Result) {
 	req, err := tgt.Request()
 	if err != nil {
@@ -121,17 +168,19 @@ func (a *Attacker) hit(tgt Target) (res Result) {
 	if err != nil {
 		if res.Code >= 300 || res.Code < 200 {
 			res.Error = fmt.Sprintf("%s %s: %s", tgt.Method, tgt.URL, r.Status)
+			a.deliver.UnSet()
 		}
 		return res
 	}
 
-    // glog level  V1  print response body
-    glog.V(1).Infof("%s", body)
+	// glog level  V1  print response body
+	glog.V(1).Infof("%s", body)
 
 	res.Latency = time.Since(res.Timestamp)
 	res.BytesIn = uint64(len(body))
 	if res.Code >= 300 || res.Code < 200 {
 		res.Error = fmt.Sprintf("%s %s: %s", tgt.Method, tgt.URL, r.Status)
+		a.deliver.UnSet()
 	} else {
 		if strings.Contains(tgt.File, "md5") {
 			//fmt.Printf("checking [%s]\n", tgt.File)
@@ -231,9 +280,9 @@ func (a *Attacker) shoot(tgts Targets) Results {
 			continue
 		}
 
-        // glog level  V1  print response body
-        glog.V(1).Infof("%s", body)
-        
+		// glog level  V1  print response body
+		glog.V(1).Infof("%s", body)
+
 		res.Latency = time.Since(res.Timestamp)
 		res.BytesIn = uint64(len(body))
 		if res.Code >= 300 || res.Code < 200 {

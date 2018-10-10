@@ -5,7 +5,8 @@ import (
 	"log"
 	"strings"
 
-	stress "github.com/buaazp/stress/lib"
+	//stress "github.com/buaazp/stress/lib"
+	stress "./lib"
 )
 
 func reportCmd() command {

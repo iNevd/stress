@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"runtime"
+
+	"github.com/golang/glog"
 )
 
 func main() {
@@ -31,7 +33,7 @@ func main() {
 		os.Exit(1)
 	}
 
-    defer glog.Flush()
+	defer glog.Flush()
 
 	if cmd, ok := commands[args[0]]; !ok {
 		log.Fatalf("Unknown command: %s", args[0])
